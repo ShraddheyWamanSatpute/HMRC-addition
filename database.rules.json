@@ -2,6 +2,55 @@
   "rules": {
     ".read": false,
     ".write": false,
+
+    "auditLogs": {
+      ".read": false,
+      ".write": false,
+      "$companyId": {
+        ".read": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).exists()",
+        "$logId": {
+          ".read": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).exists()"
+        },
+        "hmrcSubmissions": {
+          ".read": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']",
+          ".write": true
+        }
+      }
+    },
+
+    "compliance": {
+      ".read": false,
+      ".write": false,
+      "consent": {
+        "$companyId": {
+          ".read": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).exists()",
+          "$consentId": {
+            ".read": "auth != null && (root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin'] || data.child('userId').val() === auth.uid)",
+            ".write": "auth != null && (root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin'] || data.child('userId').val() === auth.uid)"
+          }
+        }
+      },
+      "dataBreaches": {
+        "$companyId": {
+          ".read": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']",
+          "$breachId": {
+            ".read": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']",
+            ".write": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']"
+          }
+        }
+      },
+      "dataRetention": {
+        "$companyId": {
+          ".read": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']",
+          ".write": "auth != null && root.child('users').child(auth.uid).child('companies').child($companyId).child('role').val() in ['owner', 'admin']"
+        }
+      }
+    },
+
     "users": {
       "$userId": {
         ".read": "auth != null && auth.uid == $userId",
