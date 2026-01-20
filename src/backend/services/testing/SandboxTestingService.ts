@@ -639,7 +639,7 @@ export class SandboxTestingService {
       id: scheduleRef.key!,
       companyId,
       createdAt: now,
-      nextRunAt: this.calculateNextRun(schedule.frequency, schedule.cronExpression),
+      nextRunAt: this.calculateNextRun(schedule.frequency),
     };
 
     await set(scheduleRef, newSchedule);
@@ -683,9 +683,8 @@ export class SandboxTestingService {
   /**
    * Calculate next run time
    */
-  private calculateNextRun(frequency: TestFrequency, cronExpression?: string): number {
+  private calculateNextRun(frequency: TestFrequency): number {
     const now = Date.now();
-    const hour = 2 * 60 * 60 * 1000; // 2am
     const day = 24 * 60 * 60 * 1000;
     const week = 7 * day;
     const month = 30 * day;

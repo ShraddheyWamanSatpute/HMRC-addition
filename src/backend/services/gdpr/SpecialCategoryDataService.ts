@@ -460,8 +460,7 @@ export class SpecialCategoryDataService {
   async markAsReviewed(
     companyId: string,
     recordId: string,
-    userId: string,
-    notes?: string
+    userId: string
   ): Promise<SpecialCategoryProcessingRecord> {
     const recordRef = ref(db, `${this.basePath}/${companyId}/${recordId}`);
     const snapshot = await get(recordRef);
