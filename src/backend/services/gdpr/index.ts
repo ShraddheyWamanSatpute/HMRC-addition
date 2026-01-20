@@ -4,6 +4,8 @@
  * UK GDPR and HMRC compliant services for:
  * - Consent management
  * - Data breach incident tracking
+ * - Breach response plan management
+ * - Breach notification templates
  * - Audit trail logging
  * - Privacy policy management
  * - Data subject access requests (DSAR)
@@ -15,6 +17,7 @@
  * References:
  * - ICO GDPR Guidance: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/
  * - ICO Lawful Basis Guidance: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/
+ * - ICO Personal Data Breaches: https://ico.org.uk/for-organisations/report-a-breach/
  * - HMRC API Requirements: https://developer.service.hmrc.gov.uk/
  * - ICO Data Subject Access Requests: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/right-of-access/
  */
@@ -23,6 +26,33 @@
 export { ConsentService, consentService } from './ConsentService';
 export { DataBreachService, dataBreachService } from './DataBreachService';
 export { AuditTrailService, auditTrailService } from './AuditTrailService';
+
+// Breach Response and Notification Services
+export {
+  BreachResponsePlanService,
+  breachResponsePlanService,
+  DEFAULT_RESPONSE_PHASES,
+  DEFAULT_ESCALATION_MATRIX,
+} from './BreachResponsePlanService';
+export type {
+  BreachResponseRole,
+  ResponsePhase,
+  BreachResponseTeamMember,
+  ResponsePhaseDetails,
+  BreachResponsePlan,
+  BreachResponseTask,
+  BreachTrainingRecord,
+} from './BreachResponsePlanService';
+
+export {
+  BreachNotificationService,
+  breachNotificationService,
+} from './BreachNotificationService';
+export type {
+  ICONotificationContent,
+  IndividualNotificationContent,
+  HMRCNotificationContent,
+} from './BreachNotificationService';
 
 // Lawful Basis Services (Article 6)
 export {
