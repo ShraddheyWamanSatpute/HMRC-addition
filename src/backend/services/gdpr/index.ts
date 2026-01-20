@@ -9,9 +9,12 @@
  * - Data subject access requests (DSAR)
  * - Data retention policy management
  * - Security incident reporting
+ * - Lawful basis documentation (Article 6)
+ * - Special category data processing (Article 9)
  *
  * References:
  * - ICO GDPR Guidance: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/
+ * - ICO Lawful Basis Guidance: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/
  * - HMRC API Requirements: https://developer.service.hmrc.gov.uk/
  * - ICO Data Subject Access Requests: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/right-of-access/
  */
@@ -20,6 +23,31 @@
 export { ConsentService, consentService } from './ConsentService';
 export { DataBreachService, dataBreachService } from './DataBreachService';
 export { AuditTrailService, auditTrailService } from './AuditTrailService';
+
+// Lawful Basis Services (Article 6)
+export {
+  LawfulBasisService,
+  lawfulBasisService,
+  STANDARD_LAWFUL_BASIS_MAPPINGS,
+} from './LawfulBasisService';
+export type {
+  ProcessingActivity,
+  DataCategoryType,
+  LawfulBasisRecord,
+} from './LawfulBasisService';
+
+// Special Category Data Services (Article 9 & 10)
+export {
+  SpecialCategoryDataService,
+  specialCategoryDataService,
+  PAYROLL_SPECIAL_CATEGORY_CONDITIONS,
+} from './SpecialCategoryDataService';
+export type {
+  SpecialCategoryType,
+  Article9Condition,
+  Schedule1Condition,
+  SpecialCategoryProcessingRecord,
+} from './SpecialCategoryDataService';
 
 // Privacy Policy
 export { PrivacyPolicyService, privacyPolicyService } from './PrivacyPolicy';
