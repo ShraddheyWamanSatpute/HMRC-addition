@@ -6,7 +6,7 @@
  */
 
 import { ConsentService } from '../src/backend/services/gdpr/ConsentService'
-import { PrivacyPolicyService } from '../src/backend/services/gdpr/PrivacyPolicy'
+import { PrivacyPolicyService } from '../src/backend/services/gdpr/PrivacyPolicy.js'
 import { LawfulBasis, ConsentPurpose } from '../src/backend/services/gdpr/types'
 
 // Mock Firebase for testing
