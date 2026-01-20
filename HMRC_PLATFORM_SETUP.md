@@ -4,6 +4,11 @@
 
 This guide is specifically for **you** (the HR software platform) setting up HMRC integration so that **your customers** (companies) can use it to manage their payroll and submit to HMRC.
 
+**Related Documentation:**
+- `HMRC_DEVELOPER_HUB_BEST_PRACTICES.md` - Technical requirements and compliance checklist
+- `HMRC_API_INTEGRATION_GUIDE.md` - API endpoints and XML schemas
+- `HMRC_QUICK_START.md` - Quick start guide for developers
+
 ---
 
 ## 🎯 Your Role vs. Company Role
@@ -30,18 +35,52 @@ This guide is specifically for **you** (the HR software platform) setting up HMR
 
 ### Step 1: Register Master Application with HMRC
 
+> ⚠️ **CRITICAL: SINGLE APPLICATION ONLY**
+>
+> HMRC Developer Hub requires **exactly ONE production application** per vendor.
+> - Do NOT create multiple applications for different customers
+> - Do NOT create separate applications for different features
+> - Use OAuth tokens to isolate customer data (not separate apps)
+
 **You register ONE application for your entire platform:**
 
 1. Go to https://developer.service.hmrc.gov.uk/
 2. Create Government Gateway account (if needed)
-3. Register your application (e.g., "1Stop HR Platform")
+3. **Register your application with YOUR COMPANY NAME:**
+
+   ```
+   ┌──────────────────────────────────────────────────┐
+   │ Application Name: [Your Company Name] HR Platform│
+   │                                                  │
+   │ Examples:                                        │
+   │   ✅ 1Stop HR Platform                           │
+   │   ✅ Acme Payroll Solutions                      │
+   │   ✅ SmallBiz Payroll Pro                        │
+   │                                                  │
+   │ DO NOT use:                                      │
+   │   ❌ Customer A Payroll                          │
+   │   ❌ Test Application                            │
+   │   ❌ HMRC Integration App                        │
+   └──────────────────────────────────────────────────┘
+   ```
+
 4. Get `client_id` and `client_secret`
 5. Set redirect URI: `https://yourdomain.com/hmrc/callback`
-6. Store credentials securely (environment variables)
+6. Store credentials securely in Firebase Secrets (NOT in code!)
 
 **This ONE application will be used by ALL companies using your software.**
 
 **Estimated Time:** 1-2 days
+
+### Why Only One Application?
+
+| Aspect | Single App (Correct) | Multiple Apps (Wrong) |
+|--------|---------------------|----------------------|
+| HMRC Approval | 1 approval process | Multiple lengthy approvals |
+| Maintenance | Single credential set | Multiple credentials to manage |
+| Updates | Update once | Update multiple times |
+| Conformance Testing | Test once | Test each app separately |
+| Customer Isolation | OAuth tokens | No benefit |
 
 ### Step 2: Build Company HMRC Settings UI
 
@@ -146,6 +185,87 @@ companies/{companyId}/sites/{siteId}/data/company/hmrcSettings: {
 - ✅ Each company's HMRC settings are separate
 - ✅ Each company's submissions are separate
 - ✅ One company cannot see another company's data
+
+---
+
+## 🌐 Network Configuration
+
+> ⚠️ **CRITICAL: HMRC uses DYNAMIC IP addresses**
+>
+> HMRC API servers run on cloud infrastructure with changing IP addresses.
+> **DO NOT** configure firewall rules based on IP addresses!
+
+### Domain-Based Access (REQUIRED)
+
+Configure your network/proxy/firewall to allow outbound HTTPS (port 443) to these domains:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ REQUIRED DOMAINS                                            │
+├─────────────────────────────────────────────────────────────┤
+│ Production:  api.service.hmrc.gov.uk                        │
+│ Sandbox:     test-api.service.hmrc.gov.uk                   │
+│                                                             │
+│ ⚠️ DO NOT whitelist by IP address - IPs change!            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Certificate Management
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ CERTIFICATES                                                │
+├─────────────────────────────────────────────────────────────┤
+│ ✅ Use system/OS root CA keystore (default in Node.js)     │
+│ ❌ DO NOT import HMRC-specific certificates                │
+│ ❌ DO NOT pin certificates                                  │
+│                                                             │
+│ HMRC uses standard TLS certificates from trusted CAs.       │
+│ Your system's root CA store handles this automatically.     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### CORS Configuration
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ CORS HANDLING                                               │
+├─────────────────────────────────────────────────────────────┤
+│ HMRC APIs do NOT support CORS headers.                     │
+│                                                             │
+│ ✅ All HMRC calls MUST go through Firebase Functions        │
+│ ❌ Direct browser → HMRC calls will fail                    │
+│                                                             │
+│ Architecture:                                               │
+│   Browser → Firebase Functions → HMRC API                   │
+│             (server-side proxy)                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Firewall Rules Example
+
+If your organization requires explicit firewall rules:
+
+```bash
+# CORRECT: Domain-based rules
+iptables -A OUTPUT -p tcp --dport 443 -d api.service.hmrc.gov.uk -j ACCEPT
+iptables -A OUTPUT -p tcp --dport 443 -d test-api.service.hmrc.gov.uk -j ACCEPT
+
+# WRONG: IP-based rules (DO NOT USE)
+# iptables -A OUTPUT -p tcp --dport 443 -d 3.10.50.0/24 -j ACCEPT  # IPs change!
+```
+
+### Corporate Proxy Configuration
+
+If behind a corporate proxy, configure your Firebase Functions or server:
+
+```typescript
+// For Node.js environments with proxy
+import { HttpsProxyAgent } from 'https-proxy-agent'
+
+const proxyAgent = new HttpsProxyAgent('http://corporate-proxy:8080')
+const response = await fetch(hmrcUrl, { agent: proxyAgent })
+```
 
 ---
 
