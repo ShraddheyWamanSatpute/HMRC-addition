@@ -15,7 +15,7 @@
 // Setup Node.js crypto for Web Crypto API compatibility
 import { webcrypto } from 'crypto';
 if (typeof globalThis.crypto === 'undefined') {
-  (globalThis as any).crypto = webcrypto;
+  (globalThis as unknown as { crypto: typeof webcrypto }).crypto = webcrypto;
 }
 
 // Import encryption utilities
@@ -78,26 +78,27 @@ async function runTest(
       duration: Date.now() - start,
     });
     console.log(`✅ PASS: ${name} (${Date.now() - start}ms)`);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     results.push({
       name,
       passed: false,
-      details: error.message || String(error),
+      details: errorMessage,
       duration: Date.now() - start,
     });
     console.log(`❌ FAIL: ${name}`);
-    console.log(`   Error: ${error.message}`);
+    console.log(`   Error: ${errorMessage}`);
   }
 }
 
 // Helper to assert equality
-function assertEqual(actual: any, expected: any, message: string): void {
+function assertEqual(actual: unknown, expected: unknown, message: string): void {
   if (actual !== expected) {
     throw new Error(`${message}: Expected "${expected}", got "${actual}"`);
   }
 }
 
-function assertNotEqual(actual: any, expected: any, message: string): void {
+function assertNotEqual(actual: unknown, expected: unknown, message: string): void {
   if (actual === expected) {
     throw new Error(`${message}: Values should not be equal`);
   }

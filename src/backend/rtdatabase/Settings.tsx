@@ -690,7 +690,7 @@ export const subscribeToSettings = (
   const businessRef = ref(db, `companies/${companyId}/settings/business`);
   
   // Current state of settings
-  let currentSettings: Settings = {
+  const currentSettings: Settings = {
     personal: {
       firstName: "",
       lastName: "",

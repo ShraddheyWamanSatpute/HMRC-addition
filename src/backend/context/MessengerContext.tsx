@@ -126,7 +126,7 @@ export const MessengerProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       autoSelectSiteIfOnlyOne().catch(() => {})
     }
 
-    let newBasePath = getBasePath("messenger")
+    const newBasePath = getBasePath("messenger")
     
     dispatch({ type: "SET_BASE_PATH", payload: newBasePath })
     // Ensure functions layer (which reads localStorage) has the active companyId

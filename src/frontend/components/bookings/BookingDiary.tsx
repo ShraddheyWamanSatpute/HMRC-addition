@@ -1204,7 +1204,7 @@ const BookingDiary: React.FC<{}> = () => {
     // Reset any highlighted tables
     const highlightedTables = document.querySelectorAll("[data-table-id]")
     highlightedTables.forEach((el: Element) => {
-      ;(el as HTMLElement).style.backgroundColor = ""
+      (el as HTMLElement).style.backgroundColor = ""
       ;(el as HTMLElement).style.boxShadow = ""
     })
 

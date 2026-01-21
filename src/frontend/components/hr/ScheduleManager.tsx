@@ -1699,7 +1699,7 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ dateRange, bookingsDa
       const parseAvailabilityDays = (daysStr?: string): number[] => {
         if (!daysStr) return []
         const mapping: Record<string, number> = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 0 }
-        let s = daysStr.toLowerCase().replace(/,/g, ' ').replace(/-/g, ' to ')
+        const s = daysStr.toLowerCase().replace(/,/g, ' ').replace(/-/g, ' to ')
         if (s.includes(' to ')) {
           const [a, b] = s.split(' to ').map((t) => t.trim())
           if (a in mapping && b in mapping) {
@@ -1714,8 +1714,8 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ dateRange, bookingsDa
       }
 
       // Demand forecast from bookings (current week)
-      let bookingsCurrentWeek: Booking[] = bookingsData || []
-      let allBookingsAll: Booking[] = bookingsData || []
+      const bookingsCurrentWeek: Booking[] = bookingsData || []
+      const allBookingsAll: Booking[] = bookingsData || []
       
       console.log("AI Scheduling - Using bookings data:", {
         totalBookings: bookingsData?.length || 0,
@@ -2367,7 +2367,7 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ dateRange, bookingsDa
       })
 
       // Flatten back
-      let balanced: typeof aiSuggestions = ([] as typeof aiSuggestions).concat(...Object.values(byEmpForBalance))
+      const balanced: typeof aiSuggestions = ([] as typeof aiSuggestions).concat(...Object.values(byEmpForBalance))
 
       // Add shifts for employees under minHours
       const balanceWeekDates = eachDayOfInterval({ start: currentWeekStart, end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }) })

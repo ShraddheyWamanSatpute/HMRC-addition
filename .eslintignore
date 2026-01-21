@@ -1,0 +1,26 @@
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Dependencies
+node_modules/
+
+# Generated files
+*.generated.ts
+*.generated.tsx
+
+# Downloads folder (duplicate/old codebase)
+Downloads/
+
+# Firebase
+.firebase/
+firebase-debug.log
+
+# Coverage
+coverage/
+
+# Misc
+*.min.js
+*.bundle.js

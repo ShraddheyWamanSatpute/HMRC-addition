@@ -1345,8 +1345,8 @@ const PayrollManagement = () => {
       if (!employee) return
 
       let allocatedAmount = 0
-      let points = empForm.points || 0
-      let percentage = empForm.percentage || 0
+      const points = empForm.points || 0
+      const percentage = empForm.percentage || 0
 
       // Calculate allocation based on method
       if (formData.allocationMethod === "points") {

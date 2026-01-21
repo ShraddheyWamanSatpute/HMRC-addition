@@ -238,7 +238,7 @@ const BookingCalendar: React.FC<{}> = () => {
   const dayBookings = useMemo(() => {
     if (!selectedDate) return []
     const dateStr = format(selectedDate, "yyyy-MM-dd")
-    let bookings = filteredBookings.filter((booking) => booking.date === dateStr)
+    const bookings = filteredBookings.filter((booking) => booking.date === dateStr)
     
     // Apply sorting if a field is selected
     if (sortField) {

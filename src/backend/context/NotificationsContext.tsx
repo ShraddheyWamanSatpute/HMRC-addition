@@ -219,7 +219,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Update base path when company context changes
   useEffect(() => {
-    let basePath = getBasePath()
+    const basePath = getBasePath()
     
     
     dispatch({ type: "SET_BASE_PATH", payload: basePath })
