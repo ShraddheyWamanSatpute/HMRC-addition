@@ -155,8 +155,10 @@ export interface DecryptionOptions {
 export class SensitiveDataService {
   private encryptionService: EncryptionService
   private encryptionKey: string | null = null
-  private static readonly ENCRYPTION_VERSION = 'v1'
-  private static readonly ENCRYPTED_MARKER = '__encrypted__'
+  private static readonly ENCRYPTION_VERSION = 'v2'
+  private static readonly ENCRYPTED_MARKER = 'ENC:'
+  // Legacy marker for backward compatibility
+  private static readonly LEGACY_ENCRYPTED_MARKER = '__encrypted__'
 
   constructor() {
     this.encryptionService = new EncryptionService()
@@ -359,16 +361,25 @@ export class SensitiveDataService {
       return encryptedValue
     }
 
-    // Remove marker and decrypt
-    const ciphertext = encryptedValue.replace(SensitiveDataService.ENCRYPTED_MARKER, '')
+    // Remove marker and decrypt - handle both legacy and new markers
+    let ciphertext = encryptedValue
+    if (encryptedValue.startsWith(SensitiveDataService.ENCRYPTED_MARKER)) {
+      ciphertext = encryptedValue.substring(SensitiveDataService.ENCRYPTED_MARKER.length)
+    } else if (encryptedValue.startsWith(SensitiveDataService.LEGACY_ENCRYPTED_MARKER)) {
+      ciphertext = encryptedValue.substring(SensitiveDataService.LEGACY_ENCRYPTED_MARKER.length)
+    }
     return this.encryptionService.decrypt(ciphertext, this.encryptionKey!)
   }
 
   /**
    * Check if a value is encrypted (has encryption marker)
+   * Supports both current (ENC:) and legacy (__encrypted__) markers
    */
   isEncryptedValue(value: string): boolean {
-    return typeof value === 'string' && value.startsWith(SensitiveDataService.ENCRYPTED_MARKER)
+    return typeof value === 'string' && (
+      value.startsWith(SensitiveDataService.ENCRYPTED_MARKER) ||
+      value.startsWith(SensitiveDataService.LEGACY_ENCRYPTED_MARKER)
+    )
   }
 
   // ==========================================================================
