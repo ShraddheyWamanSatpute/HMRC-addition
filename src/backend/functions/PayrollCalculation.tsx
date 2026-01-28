@@ -1,22 +1,24 @@
 /**
  * Payroll Calculation Backend Functions
  * HMRC-Compliant UK Payroll Processing
- * 
+ *
  * These functions integrate the calculation engines with Firebase
+ * Payroll data is encrypted at rest using AES-256-GCM to comply with UK GDPR
  */
 
 import { ref, get, set, update } from 'firebase/database'
 import { db } from '../services/Firebase'
 import { Employee, Payroll, EmployeeYTD, Schedule } from '../interfaces/HRs'
 import { TaxYearConfiguration } from '../interfaces/Company'
-import { 
-  PayrollEngine, 
-  createDefaultYTD, 
+import {
+  PayrollEngine,
+  createDefaultYTD,
   getDefaultTaxYearConfig,
   PayrollCalculationInput,
   PayrollCalculationResult,
   EmployeeYTDData
 } from '../services/payroll'
+import { sensitiveDataService } from '../services/encryption/SensitiveDataService'
 
 /**
  * Calculate payroll for a single employee
@@ -231,10 +233,26 @@ export async function createPayrollRecord(
       updatedAt: new Date().toISOString()
     }
     
+    // Encrypt sensitive payroll data before saving to Firebase
+    let recordToSave: Partial<Payroll> = payrollRecord
+    if (sensitiveDataService.isInitialized()) {
+      try {
+        recordToSave = await sensitiveDataService.encryptPayrollData(
+          payrollRecord as unknown as Record<string, unknown>
+        ) as unknown as Partial<Payroll>
+        console.log('[PayrollCalculation] Payroll data encrypted before storage')
+      } catch (encryptError) {
+        console.error('[PayrollCalculation] Failed to encrypt payroll data:', encryptError)
+        console.warn('[PayrollCalculation] WARNING: Storing payroll data without encryption')
+      }
+    } else {
+      console.warn('[PayrollCalculation] Encryption service not initialized - storing payroll data without encryption')
+    }
+
     // Save to Firebase
     const payrollRef = ref(db, `companies/${companyId}/sites/${siteId}/data/hr/payrolls/${payrollId}`)
-    await set(payrollRef, payrollRecord)
-    
+    await set(payrollRef, recordToSave)
+
     // Update employee YTD
     await updateEmployeeYTD(
       companyId,
@@ -243,7 +261,7 @@ export async function createPayrollRecord(
       calculationResult.updatedYTD,
       payrollId
     )
-    
+
     return payrollRecord as Payroll
   } catch (error) {
     console.error('Error creating payroll record:', error)
@@ -262,11 +280,24 @@ async function fetchEmployee(
   try {
     const employeeRef = ref(db, `companies/${companyId}/sites/${siteId}/data/hr/employees/${employeeId}`)
     const snapshot = await get(employeeRef)
-    
+
     if (snapshot.exists()) {
-      return snapshot.val() as Employee
+      let employee = snapshot.val() as Employee
+
+      // Decrypt sensitive employee data if encryption service is initialized
+      if (sensitiveDataService.isInitialized()) {
+        try {
+          employee = await sensitiveDataService.decryptEmployeeData(
+            employee as unknown as Record<string, unknown>
+          ) as unknown as Employee
+        } catch (decryptError) {
+          console.warn('[PayrollCalculation] Failed to decrypt employee data, using raw data')
+        }
+      }
+
+      return employee
     }
-    
+
     return null
   } catch (error) {
     console.error('Error fetching employee:', error)

@@ -18,6 +18,15 @@
  */
 
 /**
+ * Encryption format version
+ * Version 1: IV(12) + ciphertext (fixed salt)
+ * Version 2: version(1) + salt(16) + IV(12) + ciphertext (random salt per encryption)
+ */
+const ENCRYPTION_VERSION = 2;
+const SALT_LENGTH = 16;
+const IV_LENGTH = 12;
+
+/**
  * Browser-compatible encryption using Web Crypto API
  */
 export class EncryptionService {
@@ -29,18 +38,23 @@ export class EncryptionService {
    *
    * @param plaintext - Data to encrypt
    * @param key - Encryption key (should come from secure source)
-   * @returns Base64 encoded encrypted data with IV prepended
+   * @returns Base64 encoded encrypted data with version, salt, and IV prepended
+   *
+   * Format (Version 2): [version(1)] + [salt(16)] + [IV(12)] + [ciphertext]
    */
   async encrypt(plaintext: string, key: string): Promise<string> {
     if (!plaintext || !key) {
       throw new Error('Plaintext and key are required');
     }
 
-    // Derive a cryptographic key from the provided key
-    const cryptoKey = await this.deriveKey(key);
+    // Generate random salt (16 bytes) - unique per encryption for better security
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+
+    // Derive a cryptographic key from the provided key using random salt
+    const cryptoKey = await this.deriveKey(key, salt);
 
     // Generate random IV (12 bytes for AES-GCM)
-    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
 
     // Encrypt
     const encodedText = this.encoder.encode(plaintext);
@@ -53,10 +67,12 @@ export class EncryptionService {
       encodedText
     );
 
-    // Combine IV and ciphertext
-    const combined = new Uint8Array(iv.length + encryptedBuffer.byteLength);
-    combined.set(iv);
-    combined.set(new Uint8Array(encryptedBuffer), iv.length);
+    // Combine: version(1) + salt(16) + IV(12) + ciphertext
+    const combined = new Uint8Array(1 + SALT_LENGTH + IV_LENGTH + encryptedBuffer.byteLength);
+    combined[0] = ENCRYPTION_VERSION; // Version byte
+    combined.set(salt, 1); // Salt at offset 1
+    combined.set(iv, 1 + SALT_LENGTH); // IV at offset 17
+    combined.set(new Uint8Array(encryptedBuffer), 1 + SALT_LENGTH + IV_LENGTH); // Ciphertext at offset 29
 
     // Return as base64
     return this.arrayBufferToBase64(combined.buffer);
@@ -65,36 +81,64 @@ export class EncryptionService {
   /**
    * Decrypt encrypted data
    *
-   * @param ciphertext - Base64 encoded encrypted data (IV prepended)
+   * @param ciphertext - Base64 encoded encrypted data
    * @param key - Encryption key
    * @returns Decrypted plaintext
+   *
+   * Supports both Version 1 (legacy) and Version 2 formats
    */
   async decrypt(ciphertext: string, key: string): Promise<string> {
     if (!ciphertext || !key) {
       throw new Error('Ciphertext and key are required');
     }
 
-    // Derive the same cryptographic key
-    const cryptoKey = await this.deriveKey(key);
-
     // Decode from base64
     const combined = new Uint8Array(this.base64ToArrayBuffer(ciphertext));
 
-    // Extract IV and ciphertext
-    const iv = combined.slice(0, 12);
-    const encryptedData = combined.slice(12);
+    // Check version byte to determine format
+    const version = combined[0];
 
-    // Decrypt
-    const decryptedBuffer = await crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv: iv,
-      },
-      cryptoKey,
-      encryptedData
-    );
+    if (version === ENCRYPTION_VERSION) {
+      // Version 2 format: version(1) + salt(16) + IV(12) + ciphertext
+      const salt = combined.slice(1, 1 + SALT_LENGTH);
+      const iv = combined.slice(1 + SALT_LENGTH, 1 + SALT_LENGTH + IV_LENGTH);
+      const encryptedData = combined.slice(1 + SALT_LENGTH + IV_LENGTH);
 
-    return this.decoder.decode(decryptedBuffer);
+      // Derive key using the stored salt
+      const cryptoKey = await this.deriveKey(key, salt);
+
+      // Decrypt
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: iv,
+        },
+        cryptoKey,
+        encryptedData
+      );
+
+      return this.decoder.decode(decryptedBuffer);
+    } else {
+      // Legacy Version 1 format: IV(12) + ciphertext (with fixed salt)
+      // This provides backward compatibility with data encrypted before the update
+      const iv = combined.slice(0, IV_LENGTH);
+      const encryptedData = combined.slice(IV_LENGTH);
+
+      // Derive key using legacy fixed salt
+      const cryptoKey = await this.deriveKeyLegacy(key);
+
+      // Decrypt
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: iv,
+        },
+        cryptoKey,
+        encryptedData
+      );
+
+      return this.decoder.decode(decryptedBuffer);
+    }
   }
 
   /**
@@ -110,9 +154,12 @@ export class EncryptionService {
   }
 
   /**
-   * Derive encryption key from password/key using PBKDF2
+   * Derive encryption key from password/key using PBKDF2 with random salt
+   *
+   * @param password - The encryption key/password
+   * @param salt - Random salt (16 bytes) unique per encryption
    */
-  private async deriveKey(password: string): Promise<CryptoKey> {
+  private async deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
     // Import password as key material
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
@@ -122,8 +169,36 @@ export class EncryptionService {
       ['deriveKey']
     );
 
-    // Use a fixed salt (in production, use a random salt stored with the data)
-    // For better security, generate a random salt and prepend it to the ciphertext
+    // Derive AES-GCM key using the provided random salt
+    return crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  /**
+   * Legacy key derivation with fixed salt (for backward compatibility)
+   * Used to decrypt data encrypted with Version 1 format
+   */
+  private async deriveKeyLegacy(password: string): Promise<CryptoKey> {
+    // Import password as key material
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      this.encoder.encode(password),
+      { name: 'PBKDF2' },
+      false,
+      ['deriveKey']
+    );
+
+    // Use the legacy fixed salt
     const salt = this.encoder.encode('hmrc-compliance-salt-v1');
 
     // Derive AES-GCM key

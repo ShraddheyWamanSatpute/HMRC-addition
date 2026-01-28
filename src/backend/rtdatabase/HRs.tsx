@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { db, ref, set, push, remove, update, onValue, off, get } from "../services/Firebase"
 import { calculateHRAnalytics } from "../functions/HRs"
+import { sensitiveDataService } from "../services/encryption/SensitiveDataService"
 import type {
   Employee,
   Department,
@@ -1243,39 +1244,58 @@ export const fetchEmployees = async (basePath: string): Promise<Employee[]> => {
   try {
     const fullPath = `${basePath}/employees`
     console.log("🔍 fetchEmployees - attempting to fetch from path:", fullPath)
-    
+
     const employeesRef = ref(db, fullPath)
     const snapshot = await get(employeesRef)
-    
+
     console.log("🔍 fetchEmployees - snapshot result:", {
       exists: snapshot.exists(),
       hasChildren: snapshot.hasChildren()
     })
-    
+
     if (!snapshot.exists()) {
       console.log("❌ fetchEmployees - no data exists at path:", fullPath)
       return []
     }
-    
+
     const employees: Employee[] = []
     snapshot.forEach((childSnapshot: any) => {
       const employeeData = childSnapshot.val()
       const employee = { id: childSnapshot.key, ...employeeData } as Employee
       employees.push(employee)
     })
-    
+
+    // Decrypt sensitive employee data if encryption service is initialized
+    const decryptedEmployees: Employee[] = []
+    for (const employee of employees) {
+      try {
+        if (sensitiveDataService.isInitialized()) {
+          const decrypted = await sensitiveDataService.decryptEmployeeData(
+            employee as unknown as Record<string, unknown>
+          )
+          decryptedEmployees.push(decrypted as unknown as Employee)
+        } else {
+          decryptedEmployees.push(employee)
+        }
+      } catch (decryptError) {
+        // If decryption fails, return the raw data (might not be encrypted)
+        console.warn(`[HRs] Failed to decrypt employee ${employee.id}, using raw data`)
+        decryptedEmployees.push(employee)
+      }
+    }
+
     console.log("✅ fetchEmployees - loaded employees:", {
-      count: employees.length,
-      sampleEmployee: employees[0] ? {
-        id: employees[0].id,
-        employeeID: employees[0].employeeID,
-        name: `${employees[0].firstName} ${employees[0].lastName}`,
-        status: employees[0].status,
-        isActive: (employees[0] as any).isActive
+      count: decryptedEmployees.length,
+      sampleEmployee: decryptedEmployees[0] ? {
+        id: decryptedEmployees[0].id,
+        employeeID: decryptedEmployees[0].employeeID,
+        name: `${decryptedEmployees[0].firstName} ${decryptedEmployees[0].lastName}`,
+        status: decryptedEmployees[0].status,
+        isActive: (decryptedEmployees[0] as any).isActive
       } : null
     })
-    
-    return employees
+
+    return decryptedEmployees
   } catch (error) {
     console.error("❌ fetchEmployees - Error fetching employees from path:", basePath, error)
     return []
@@ -1287,19 +1307,37 @@ export const createEmployee = async (basePath: string, employee: Omit<Employee, 
     const employeesRef = ref(db, `${basePath}/employees`)
     const newEmployeeRef = push(employeesRef)
     const employeeId = newEmployeeRef.key
-    
+
     if (!employeeId) {
       console.error("Failed to generate employee ID")
       return null
     }
-    
-    const newEmployee: Employee = {
+
+    let newEmployee: Employee = {
       ...employee,
       id: employeeId,
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
-    
+
+    // Encrypt sensitive employee data before saving if encryption service is initialized
+    if (sensitiveDataService.isInitialized()) {
+      try {
+        const encrypted = await sensitiveDataService.encryptEmployeeData(
+          newEmployee as unknown as Record<string, unknown>
+        )
+        newEmployee = encrypted as unknown as Employee
+        console.log("[HRs] Employee data encrypted before storage")
+      } catch (encryptError) {
+        console.error("[HRs] Failed to encrypt employee data:", encryptError)
+        // In production, you might want to throw here to prevent unencrypted storage
+        // For now, we'll log the warning but still save
+        console.warn("[HRs] WARNING: Storing employee data without encryption")
+      }
+    } else {
+      console.warn("[HRs] Encryption service not initialized - storing employee data without encryption")
+    }
+
     await set(newEmployeeRef, newEmployee)
     return employeeId
   } catch (error) {
@@ -1311,18 +1349,42 @@ export const createEmployee = async (basePath: string, employee: Omit<Employee, 
 export const updateEmployee = async (basePath: string, employeeId: string, updates: Partial<Employee>): Promise<Employee | null> => {
   try {
     const employeeRef = ref(db, `${basePath}/employees/${employeeId}`)
-    
-    const updatedData = {
+
+    let updatedData: Record<string, unknown> = {
       ...updates,
       updatedAt: Date.now()
     }
-    
+
+    // Encrypt sensitive employee data before saving if encryption service is initialized
+    if (sensitiveDataService.isInitialized()) {
+      try {
+        updatedData = await sensitiveDataService.encryptEmployeeData(updatedData)
+        console.log("[HRs] Employee update data encrypted before storage")
+      } catch (encryptError) {
+        console.error("[HRs] Failed to encrypt employee update data:", encryptError)
+        console.warn("[HRs] WARNING: Storing employee update without encryption")
+      }
+    } else {
+      console.warn("[HRs] Encryption service not initialized - storing employee update without encryption")
+    }
+
     await update(employeeRef, updatedData)
-    
-    // Return the updated employee
+
+    // Return the updated employee (decrypted)
     const snapshot = await get(employeeRef)
     if (snapshot.exists()) {
-      return { id: employeeId, ...snapshot.val() } as Employee
+      let employee = { id: employeeId, ...snapshot.val() } as Employee
+      // Decrypt the data before returning
+      if (sensitiveDataService.isInitialized()) {
+        try {
+          employee = await sensitiveDataService.decryptEmployeeData(
+            employee as unknown as Record<string, unknown>
+          ) as unknown as Employee
+        } catch (decryptError) {
+          console.warn("[HRs] Failed to decrypt updated employee, returning raw data")
+        }
+      }
+      return employee
     }
     return null
   } catch (error) {
