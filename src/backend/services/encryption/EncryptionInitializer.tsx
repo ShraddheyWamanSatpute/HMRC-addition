@@ -183,7 +183,8 @@ export function EncryptionProvider({ children }: EncryptionProviderProps) {
         console.log('[EncryptionInitializer] Encryption services initialized successfully')
         // Expose for debugging in development
         if (import.meta.env.DEV) {
-          (window as any).__encryptionStatus = {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as unknown as Record<string, unknown>).__encryptionStatus = {
             initialized: true,
             services,
             sensitiveDataService: {
