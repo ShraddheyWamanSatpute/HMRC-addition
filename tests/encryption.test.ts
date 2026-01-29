@@ -12,10 +12,12 @@
  * Or: npx tsx tests/encryption.test.ts
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 // Setup Node.js crypto for Web Crypto API compatibility
 import { webcrypto } from 'crypto';
 if (typeof globalThis.crypto === 'undefined') {
-  (globalThis as any).crypto = webcrypto;
+  (globalThis as unknown as { crypto: Crypto }).crypto = webcrypto as unknown as Crypto;
 }
 
 // Import encryption utilities
