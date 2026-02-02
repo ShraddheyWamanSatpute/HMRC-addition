@@ -6,6 +6,7 @@
  * - Tracks ICO notification within 72 hours
  * - Tracks HMRC notification within 72 hours
  * - Manages user notification for high-risk breaches
+ * - Encrypts sensitive breach details (description, consequences)
  *
  * Reference: ICO Personal Data Breaches Guide
  */
@@ -13,14 +14,86 @@
 import { ref, push, set, get, update, query, orderByChild } from 'firebase/database';
 import { db } from '../Firebase';
 import { DataBreachIncident, BreachSeverity, BreachStatus } from './types';
+import { sensitiveDataService } from '../encryption/SensitiveDataService';
 
 const HOURS_72_MS = 72 * 60 * 60 * 1000; // 72 hours in milliseconds
+
+// Fields to encrypt in breach records (may contain sensitive incident details)
+const BREACH_ENCRYPTED_FIELDS = ['description'] as const;
 
 export class DataBreachService {
   private basePath: string;
 
   constructor() {
     this.basePath = 'compliance/dataBreaches';
+  }
+
+  /**
+   * Encrypt sensitive breach data before storage
+   */
+  private async encryptBreachData(data: Partial<DataBreachIncident>): Promise<Partial<DataBreachIncident>> {
+    if (!sensitiveDataService.isInitialized()) {
+      console.warn('[DataBreachService] Encryption service not initialized - storing breach data without encryption');
+      return data;
+    }
+
+    try {
+      const encrypted = { ...data };
+
+      // Encrypt description
+      if (encrypted.description) {
+        encrypted.description = await sensitiveDataService.encryptValue(encrypted.description);
+      }
+
+      // Encrypt each potential consequence
+      if (encrypted.potentialConsequences && Array.isArray(encrypted.potentialConsequences)) {
+        encrypted.potentialConsequences = await Promise.all(
+          encrypted.potentialConsequences.map(async (consequence) => {
+            return sensitiveDataService.encryptValue(consequence);
+          })
+        );
+      }
+
+      return encrypted;
+    } catch (error) {
+      console.error('[DataBreachService] Failed to encrypt breach data:', error);
+      return data; // Return unencrypted data as fallback
+    }
+  }
+
+  /**
+   * Decrypt sensitive breach data after retrieval
+   */
+  private async decryptBreachData(data: DataBreachIncident): Promise<DataBreachIncident> {
+    if (!sensitiveDataService.isInitialized()) {
+      return data;
+    }
+
+    try {
+      const decrypted = { ...data };
+
+      // Decrypt description if encrypted
+      if (decrypted.description && sensitiveDataService.isEncryptedValue(decrypted.description)) {
+        decrypted.description = await sensitiveDataService.decryptValue(decrypted.description);
+      }
+
+      // Decrypt each potential consequence if encrypted
+      if (decrypted.potentialConsequences && Array.isArray(decrypted.potentialConsequences)) {
+        decrypted.potentialConsequences = await Promise.all(
+          decrypted.potentialConsequences.map(async (consequence) => {
+            if (sensitiveDataService.isEncryptedValue(consequence)) {
+              return sensitiveDataService.decryptValue(consequence);
+            }
+            return consequence;
+          })
+        );
+      }
+
+      return decrypted;
+    } catch (error) {
+      console.error('[DataBreachService] Failed to decrypt breach data:', error);
+      return data; // Return encrypted data as fallback
+    }
   }
 
   /**
@@ -87,7 +160,9 @@ export class DataBreachService {
       createdAt: now,
     };
 
-    await set(breachRef, record);
+    // Encrypt sensitive breach data before storage
+    const encryptedRecord = await this.encryptBreachData(record) as DataBreachIncident;
+    await set(breachRef, encryptedRecord);
 
     // Log console warning for urgent breaches
     if (requiresICONotification || requiresHMRCNotification) {
@@ -207,7 +282,10 @@ export class DataBreachService {
     const snapshot = await get(breachRef);
 
     if (!snapshot.exists()) return null;
-    return snapshot.val() as DataBreachIncident;
+
+    // Decrypt sensitive breach data before returning
+    const breach = snapshot.val() as DataBreachIncident;
+    return this.decryptBreachData(breach);
   }
 
   /**
@@ -225,7 +303,12 @@ export class DataBreachService {
       breaches.push(child.val() as DataBreachIncident);
     });
 
-    return breaches.reverse(); // Most recent first
+    // Decrypt sensitive breach data before returning
+    const decryptedBreaches = await Promise.all(
+      breaches.map((breach) => this.decryptBreachData(breach))
+    );
+
+    return decryptedBreaches.reverse(); // Most recent first
   }
 
   /**
