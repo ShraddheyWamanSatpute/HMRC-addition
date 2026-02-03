@@ -96,47 +96,6 @@ const EmployeeCRUDForm = forwardRef<EmployeeCRUDFormRef, EmployeeCRUDFormProps>(
     privacyPolicyAcceptedRef.current = privacyPolicyAccepted
   }, [privacyPolicyAccepted])
 
-  // Expose form submit function for CRUDModal
-  useImperativeHandle(ref, () => ({
-    submit: () => {
-      // Validate privacy policy consent for new employees
-      if (mode === 'create' && !privacyPolicyAcceptedRef.current) {
-        alert('You must confirm that the employee has been informed about and accepts the Privacy Policy before creating their record.')
-        return
-      }
-
-      // Record consent for new employees before saving
-      if (mode === 'create' && privacyPolicyAcceptedRef.current && settingsState.auth?.uid && companyState.companyID) {
-        // Record consent asynchronously (don't block save)
-        const policyVersion = privacyPolicyService.getPrivacyPolicy({
-          companyName: companyState.companyName || 'Company',
-          companyAddress: '',
-          dpoName: 'Data Protection Officer',
-          dpoEmail: 'dpo@company.com',
-        }).version
-
-        consentService.documentLawfulBasis(
-          companyState.companyID,
-          settingsState.auth.uid,
-          'employee_records',
-          'contract',
-          `Employee record created by HR. Employee data processing is necessary for employment contract and legal obligations (HMRC, payroll). Employee has been informed about privacy policy.`,
-          policyVersion
-        ).catch((error) => {
-          console.warn('Failed to record privacy policy consent during employee creation:', error)
-        })
-      }
-
-      // Prepare and pass form data to onSave
-      const employeeData = {
-        ...formData,
-        hireDate: formData.hireDate instanceof Date ? formData.hireDate.getTime() : formData.hireDate,
-        dateOfBirth: formData.dateOfBirth instanceof Date ? formData.dateOfBirth.getTime() : formData.dateOfBirth,
-      }
-      onSave(employeeData)
-    }
-  }), [formData, mode, privacyPolicyAccepted, settingsState.auth?.uid, companyState.companyID, companyState.companyName, onSave, consentService, privacyPolicyService])
-
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -317,6 +276,47 @@ const EmployeeCRUDForm = forwardRef<EmployeeCRUDFormRef, EmployeeCRUDFormProps>(
       setPhotoPreview(employee.photo || null)
     }
   }, [employee])
+
+  // Expose form submit function for CRUDModal
+  useImperativeHandle(ref, () => ({
+    submit: () => {
+      // Validate privacy policy consent for new employees
+      if (mode === 'create' && !privacyPolicyAcceptedRef.current) {
+        alert('You must confirm that the employee has been informed about and accepts the Privacy Policy before creating their record.')
+        return
+      }
+
+      // Record consent for new employees before saving
+      if (mode === 'create' && privacyPolicyAcceptedRef.current && settingsState.auth?.uid && companyState.companyID) {
+        // Record consent asynchronously (don't block save)
+        const policyVersion = privacyPolicyService.getPrivacyPolicy({
+          companyName: companyState.companyName || 'Company',
+          companyAddress: '',
+          dpoName: 'Data Protection Officer',
+          dpoEmail: 'dpo@company.com',
+        }).version
+
+        consentService.documentLawfulBasis(
+          companyState.companyID,
+          settingsState.auth.uid,
+          'employee_records',
+          'contract',
+          `Employee record created by HR. Employee data processing is necessary for employment contract and legal obligations (HMRC, payroll). Employee has been informed about privacy policy.`,
+          policyVersion
+        ).catch((error) => {
+          console.warn('Failed to record privacy policy consent during employee creation:', error)
+        })
+      }
+
+      // Prepare and pass form data to onSave
+      const employeeData = {
+        ...formData,
+        hireDate: formData.hireDate instanceof Date ? formData.hireDate.getTime() : formData.hireDate,
+        dateOfBirth: formData.dateOfBirth instanceof Date ? formData.dateOfBirth.getTime() : formData.dateOfBirth,
+      }
+      onSave(employeeData)
+    }
+  }), [formData, mode, privacyPolicyAccepted, settingsState.auth?.uid, companyState.companyID, companyState.companyName, onSave, consentService, privacyPolicyService])
 
   const handleChange = (field: string, value: any) => {
     if (field.includes('.')) {
@@ -506,11 +506,10 @@ const EmployeeCRUDForm = forwardRef<EmployeeCRUDFormRef, EmployeeCRUDFormProps>(
                         onChange={(date) => handleChange('dateOfBirth', date)}
                         disabled={isReadOnly}
                         maxDate={new Date(new Date().setDate(new Date().getDate() - 1))}
-                        locale={enGB}
                         slotProps={{
                           textField: {
                             fullWidth: true,
-                            error: formData.dateOfBirth && formData.dateOfBirth >= new Date(new Date().setHours(0, 0, 0, 0)),
+                            error: formData.dateOfBirth ? formData.dateOfBirth >= new Date(new Date().setHours(0, 0, 0, 0)) : undefined,
                             helperText: formData.dateOfBirth && formData.dateOfBirth >= new Date(new Date().setHours(0, 0, 0, 0)) 
                               ? "Date of birth cannot be today or in the future" 
                               : "DD/MM/YYYY format"
@@ -815,7 +814,6 @@ const EmployeeCRUDForm = forwardRef<EmployeeCRUDFormRef, EmployeeCRUDFormProps>(
                     value={formData.hireDate}
                     onChange={(date) => handleChange('hireDate', date || new Date())}
                     disabled={isReadOnly}
-                    locale={enGB}
                     slotProps={{
                       textField: {
                         fullWidth: true,

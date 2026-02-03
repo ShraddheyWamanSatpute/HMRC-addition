@@ -30,7 +30,8 @@ const PrivacyPolicy: React.FC = () => {
           companyAddress: company?.companyAddress || '',
           dpoName: 'Data Protection Officer',
           dpoEmail: company?.companyEmail || 'dpo@company.com',
-          dpoPhone: company?.companyPhone
+          dpoPhone: company?.companyPhone,
+          icoRegistrationNumber: (company as any)?.icoRegistrationNumber || undefined
         })
 
         setPolicyData(policy)
@@ -166,6 +167,19 @@ const PrivacyPolicy: React.FC = () => {
               <Typography variant="body2" color="text.secondary">
                 <strong>Company:</strong> {policyData.companyName}
               </Typography>
+              {policyData.icoRegistrationNumber && (
+                <Typography variant="body2" color="text.secondary">
+                  <strong>ICO Registration Number:</strong> {policyData.icoRegistrationNumber}{' '}
+                  <a 
+                    href="https://ico.org.uk/ESDWebPages/search" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    (Verify on ICO website)
+                  </a>
+                </Typography>
+              )}
               {policyData.companyAddress && (
                 <Typography variant="body2" color="text.secondary">
                   <strong>Address:</strong> {policyData.companyAddress}
@@ -180,6 +194,11 @@ const PrivacyPolicy: React.FC = () => {
                   <> - {policyData.dataProtectionOfficer.phone}</>
                 )}
               </Typography>
+              {policyData.previousVersions && policyData.previousVersions.length > 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  <strong>Version History:</strong> {policyData.previousVersions.length} archived version(s) available for audit trail
+                </Typography>
+              )}
             </Box>
             <Divider sx={{ my: 2 }} />
           </Box>

@@ -14,18 +14,28 @@ export interface PrivacyPolicySection {
   lastUpdated: string;
 }
 
+export interface PrivacyPolicyVersion {
+  version: string;
+  effectiveDate: string;
+  archivedAt: string;
+  archivedBy?: string;
+  changeSummary?: string;
+}
+
 export interface PrivacyPolicyData {
   version: string;
   effectiveDate: string;
   lastUpdated: string;
   companyName: string;
   companyAddress: string;
+  icoRegistrationNumber?: string; // ICO registration number (if registered)
   dataProtectionOfficer: {
     name: string;
     email: string;
     phone?: string;
   };
   sections: PrivacyPolicySection[];
+  previousVersions?: PrivacyPolicyVersion[];
 }
 
 /**
@@ -36,6 +46,16 @@ export class PrivacyPolicyService {
   private currentVersion = '2.0.0';
   private effectiveDate = '2025-01-01';
   private lastUpdated = '2025-01-19';
+  
+  // Version history for audit trail
+  private versionHistory: PrivacyPolicyVersion[] = [
+    {
+      version: '1.0.0',
+      effectiveDate: '2024-01-01',
+      archivedAt: '2025-01-01',
+      changeSummary: 'Initial privacy policy version',
+    },
+  ];
 
   /**
    * Get the complete privacy policy
@@ -46,6 +66,7 @@ export class PrivacyPolicyService {
     dpoName: string;
     dpoEmail: string;
     dpoPhone?: string;
+    icoRegistrationNumber?: string; // ICO registration number (optional)
   }): PrivacyPolicyData {
     return {
       version: this.currentVersion,
@@ -53,22 +74,24 @@ export class PrivacyPolicyService {
       lastUpdated: this.lastUpdated,
       companyName: companyInfo.companyName,
       companyAddress: companyInfo.companyAddress,
+      icoRegistrationNumber: companyInfo.icoRegistrationNumber,
       dataProtectionOfficer: {
         name: companyInfo.dpoName,
         email: companyInfo.dpoEmail,
         phone: companyInfo.dpoPhone,
       },
-      sections: this.getPolicySections(companyInfo.companyName),
+      sections: this.getPolicySections(companyInfo.companyName, companyInfo.icoRegistrationNumber),
+      previousVersions: this.versionHistory.length > 0 ? [...this.versionHistory] : undefined,
     };
   }
 
   /**
    * Get all privacy policy sections
    */
-  private getPolicySections(companyName: string): PrivacyPolicySection[] {
+  private getPolicySections(companyName: string, icoRegistrationNumber?: string): PrivacyPolicySection[] {
     return [
       this.getIntroductionSection(companyName),
-      this.getDataControllerSection(companyName),
+      this.getDataControllerSection(companyName, icoRegistrationNumber),
       this.getDataCollectedSection(),
       this.getLawfulBasisSection(),
       this.getHMRCDataProcessingSection(),
@@ -109,17 +132,30 @@ By using our services, you acknowledge that you have read and understood this pr
     };
   }
 
-  private getDataControllerSection(companyName: string): PrivacyPolicySection {
-    return {
-      id: 'data-controller',
-      title: '2. Data Controller',
-      content: `
+  private getDataControllerSection(companyName: string, icoRegistrationNumber?: string): PrivacyPolicySection {
+    let content = `
 ${companyName} is the data controller responsible for your personal data.
+`;
 
+    // Add ICO registration number if provided (UK GDPR requirement)
+    if (icoRegistrationNumber) {
+      content += `
+**ICO Registration Number:** ${icoRegistrationNumber}
+
+We are registered with the Information Commissioner's Office (ICO) as required under UK GDPR. You can verify our registration on the ICO website: https://ico.org.uk/ESDWebPages/search
+`;
+    }
+
+    content += `
 We have appointed a Data Protection Officer (DPO) who is responsible for overseeing questions in relation to this privacy policy. If you have any questions about this privacy policy, including any requests to exercise your legal rights, please contact the DPO using the details provided in the Contact section.
 
 For HMRC-related data processing, we act as a data processor on behalf of employer companies who use our platform. Each employer company is the data controller for their employees' payroll data.
-      `.trim(),
+`;
+
+    return {
+      id: 'data-controller',
+      title: '2. Data Controller',
+      content: content.trim(),
       lastUpdated: this.lastUpdated,
     };
   }
@@ -714,6 +750,7 @@ You can complain to the ICO at any time, but we encourage you to contact us firs
     dpoName: string;
     dpoEmail: string;
     dpoPhone?: string;
+    icoRegistrationNumber?: string;
   }): string {
     const policy = this.getPrivacyPolicy(companyInfo);
     let html = `
@@ -739,10 +776,12 @@ You can complain to the ICO at any time, but we encourage you to contact us firs
   <h1>Privacy Policy</h1>
   <div class="meta">
     <p><strong>Company:</strong> ${policy.companyName}</p>
+    ${policy.icoRegistrationNumber ? `<p><strong>ICO Registration Number:</strong> ${policy.icoRegistrationNumber} <a href="https://ico.org.uk/ESDWebPages/search" target="_blank" rel="noopener noreferrer">(Verify on ICO website)</a></p>` : ''}
     <p><strong>Version:</strong> ${policy.version}</p>
     <p><strong>Effective Date:</strong> ${policy.effectiveDate}</p>
     <p><strong>Last Updated:</strong> ${policy.lastUpdated}</p>
     <p><strong>Data Protection Officer:</strong> ${policy.dataProtectionOfficer.name} (${policy.dataProtectionOfficer.email})</p>
+    ${policy.previousVersions && policy.previousVersions.length > 0 ? `<p><strong>Previous Versions:</strong> ${policy.previousVersions.length} archived version(s) available for audit trail</p>` : ''}
   </div>
 `;
 
@@ -764,31 +803,154 @@ You can complain to the ICO at any time, but we encourage you to contact us firs
 
   /**
    * Simple markdown to HTML converter
+   * Handles tables, bold text, lists, and paragraphs
    */
   private markdownToHTML(markdown: string): string {
-    let html = markdown
-      // Tables
-      .replace(/\|(.+)\|/g, (match) => {
-        const cells = match.split('|').filter(c => c.trim());
-        if (cells.some(c => c.includes('---'))) {
-          return '';
-        }
-        const tag = match.includes('---') ? 'th' : 'td';
-        return `<tr>${cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join('')}</tr>`;
-      })
-      // Bold
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      // Lists
-      .replace(/^- (.+)$/gm, '<li>$1</li>')
-      // Paragraphs
-      .replace(/\n\n/g, '</p><p>')
-      // Line breaks
-      .replace(/\n/g, '<br>');
+    // Reset table placeholders for each conversion
+    const tablePlaceholders: string[] = [];
+    let html = markdown;
+
+    // Process tables first (before other replacements)
+    html = this.processTables(html, tablePlaceholders);
+
+    // Bold text
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    // Lists
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
 
     // Wrap lists
     html = html.replace(/(<li>.*<\/li>)+/g, '<ul>$&</ul>');
 
-    return `<p>${html}</p>`;
+    // Paragraphs (split on double newlines)
+    const paragraphs = html.split(/\n\n+/);
+    html = paragraphs
+      .map(p => p.trim())
+      .filter(p => p && !p.startsWith('<table') && !p.startsWith('<ul'))
+      .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+      .join('');
+
+    // Re-insert tables and lists (they were preserved)
+    html = html.replace(/__TABLE_PLACEHOLDER_(\d+)__/g, (_, index) => {
+      return tablePlaceholders[parseInt(index)] || '';
+    });
+
+    return html;
+  }
+
+  /**
+   * Process markdown tables and convert to HTML
+   * Handles header rows, separator rows, and data rows correctly
+   */
+  private processTables(markdown: string, tablePlaceholders: string[]): string {
+    const lines = markdown.split('\n');
+    const result: string[] = [];
+    let tableRows: string[] = [];
+    let inTable = false;
+    let tableIndex = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const isTableRow = line.startsWith('|') && line.endsWith('|');
+
+      if (isTableRow) {
+        if (!inTable) {
+          // Start of a new table
+          inTable = true;
+          tableRows = [];
+        }
+
+        // Check if this is a separator row (contains only dashes and pipes)
+        const isSeparator = /^\|[\s\-:]+\|$/.test(line);
+        
+        if (!isSeparator) {
+          // Regular table row (header or data)
+          tableRows.push(line);
+        }
+        // Separator rows are ignored (they just indicate header/data boundary)
+      } else {
+        // Not a table row
+        if (inTable) {
+          // End of table - process accumulated rows
+          if (tableRows.length > 0) {
+            const tableHTML = this.buildTableHTML(tableRows);
+            const placeholder = `__TABLE_PLACEHOLDER_${tableIndex}__`;
+            tablePlaceholders[tableIndex] = tableHTML;
+            result.push(placeholder);
+            tableIndex++;
+          }
+          tableRows = [];
+          inTable = false;
+        }
+        result.push(lines[i]);
+      }
+    }
+
+    // Handle table at end of content
+    if (inTable && tableRows.length > 0) {
+      const tableHTML = this.buildTableHTML(tableRows);
+      const placeholder = `__TABLE_PLACEHOLDER_${tableIndex}__`;
+      tablePlaceholders[tableIndex] = tableHTML;
+      result.push(placeholder);
+    }
+
+    return result.join('\n');
+  }
+
+  /**
+   * Build HTML table from markdown table rows
+   * First row is treated as header, rest as data rows
+   */
+  private buildTableHTML(rows: string[]): string {
+    if (rows.length === 0) {
+      return '';
+    }
+
+    let html = '<table><thead>';
+    
+    // First row is always the header
+    const headerRow = rows[0];
+    const headerCells = headerRow
+      .split('|')
+      .map(c => c.trim())
+      .filter(c => c.length > 0);
+    
+    html += '<tr>';
+    for (const cell of headerCells) {
+      html += `<th>${this.escapeHTML(cell)}</th>`;
+    }
+    html += '</tr>';
+    html += '</thead><tbody>';
+
+    // Remaining rows are data rows
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const cells = row
+        .split('|')
+        .map(c => c.trim())
+        .filter(c => c.length > 0);
+      
+      html += '<tr>';
+      for (const cell of cells) {
+        html += `<td>${this.escapeHTML(cell)}</td>`;
+      }
+      html += '</tr>';
+    }
+
+    html += '</tbody></table>';
+    return html;
+  }
+
+  /**
+   * Escape HTML special characters
+   */
+  private escapeHTML(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   /**
@@ -803,6 +965,43 @@ You can complain to the ICO at any time, but we encourage you to contact us firs
    */
   hasAcceptedCurrentVersion(acceptedVersion: string): boolean {
     return acceptedVersion === this.currentVersion;
+  }
+
+  /**
+   * Get version history for audit trail
+   */
+  getVersionHistory(): PrivacyPolicyVersion[] {
+    return [...this.versionHistory];
+  }
+
+  /**
+   * Archive current version and create new version
+   * This should be called when updating the policy
+   */
+  archiveCurrentVersion(archivedBy?: string, changeSummary?: string): void {
+    this.versionHistory.push({
+      version: this.currentVersion,
+      effectiveDate: this.effectiveDate,
+      archivedAt: new Date().toISOString().split('T')[0],
+      archivedBy,
+      changeSummary,
+    });
+  }
+
+  /**
+   * Update policy version (for major changes)
+   * This archives the current version and sets a new version
+   */
+  updateVersion(
+    newVersion: string,
+    newEffectiveDate: string,
+    archivedBy?: string,
+    changeSummary?: string
+  ): void {
+    this.archiveCurrentVersion(archivedBy, changeSummary);
+    this.currentVersion = newVersion;
+    this.effectiveDate = newEffectiveDate;
+    this.lastUpdated = new Date().toISOString().split('T')[0];
   }
 }
 

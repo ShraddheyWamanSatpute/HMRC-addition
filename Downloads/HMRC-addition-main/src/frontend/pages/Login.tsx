@@ -1,0 +1,158 @@
+"use client";
+
+import type React from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Container,
+  TextField,
+  Button,
+  FormControlLabel,
+  Checkbox,
+  Typography,
+  Card,
+  CardContent,
+  Box,
+  CircularProgress,
+  Link,
+} from "@mui/material";
+import { Link as RouterLink } from "react-router-dom";
+import { useSettings } from "../../backend/context/SettingsContext";
+
+const Login: React.FC = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useSettings();
+  const navigate = useNavigate();
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      if (!email || !password) {
+        throw new Error("Email and Password are required.");
+      }
+
+      await login(email, password);
+      
+      // Login function in SettingsContext handles the dispatch internally
+      // No need to manually dispatch here
+
+      setMessage("Login successful!");
+      if (keepSignedIn) {
+        localStorage.setItem("keepSignedIn", "true");
+      }
+      
+      // Check if we're on mobile route and redirect accordingly
+      const currentPath = window.location.pathname
+      if (currentPath.startsWith("/Mobile") || currentPath.startsWith("/mobile")) {
+        navigate("/Mobile/Dashboard")
+      } else if (currentPath.startsWith("/ESS") || currentPath.startsWith("/ess")) {
+        navigate("/ESS/Dashboard")
+      } else {
+        navigate("/");
+      }
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "An unknown error occurred."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Container maxWidth="sm">
+      <Card sx={{ marginTop: 8, padding: 3 }}>
+        <CardContent>
+          <Box sx={{ display: "flex", justifyContent: "center", mb: 4 }}>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: "bold" }}>
+              1 Stop
+            </Typography>
+          </Box>
+          <Typography variant="h5" gutterBottom>
+            Log In
+          </Typography>
+          <form onSubmit={handleLogin}>
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={keepSignedIn}
+                  onChange={(e) => setKeepSignedIn(e.target.checked)}
+                />
+              }
+              label="Remember Me"
+            />
+            <Button
+              fullWidth
+              variant="contained"
+              type="submit"
+              disabled={isLoading}
+              sx={{ marginTop: 2 }}
+            >
+              {isLoading ? <CircularProgress size={24} /> : "Log In"}
+            </Button>
+            <Button
+              fullWidth
+              variant="text"
+              onClick={() => navigate("/Register")}
+              sx={{ marginTop: 1 }}
+            >
+              Create Account
+            </Button>
+            <Button
+              fullWidth
+              variant="text"
+              onClick={() => navigate("/Reset-Password")}
+            >
+              Forgot Password
+            </Button>
+            {message && (
+              <Typography color="error" sx={{ marginTop: 2 }}>
+                {message}
+              </Typography>
+            )}
+          </form>
+          <Box sx={{ mt: 3, textAlign: "center" }}>
+            <Typography variant="caption" color="text.secondary">
+              By logging in, you agree to our{" "}
+              <Link
+                component={RouterLink}
+                to="/PrivacyPolicy"
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ textDecoration: "none" }}
+              >
+                Privacy Policy
+              </Link>
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+    </Container>
+  );
+};
+
+export default Login;
